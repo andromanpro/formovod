@@ -1,0 +1,6 @@
+digraph {
+graph [rankdir=LR,bgcolor="#171d21",pad=.32,nodesep=.44,ranksep=.5]
+node [shape=box,style="rounded,filled",color="#5d7779",fillcolor="#22383c",fontcolor="#fff1d8",fontname="DejaVu Sans",margin=".20,.14"]
+edge [color="#e9b66a",fontcolor="#fff1d8",fontname="DejaVu Sans",fontsize=10]
+a [label="Назначить задачу"]; b [label="Найти форму\nи нужную строку"]; c [label="Ввести значение"]; d [label="Перечитать ячейку\nи сверить"]; e [label="Оператор проверяет\nрезультат и журнал"]; f [label="Остановить поручение\nи осмотреть открытую форму",fillcolor="#42342d",color="#ba885f"]; a -> b -> c -> d -> e; c -> f [label="по кнопке"]; f -> e;
+}

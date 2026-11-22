@@ -1,0 +1,7 @@
+digraph {
+graph [rankdir=LR,bgcolor="#171d21",pad=.32,nodesep=.52,ranksep=.6]
+node [shape=box,style="rounded,filled",color="#5d7779",fillcolor="#22383c",fontcolor="#fff1d8",fontname="DejaVu Sans",margin=".20,.14"]
+edge [color="#e9b66a",fontcolor="#fff1d8",fontname="DejaVu Sans",fontsize=10]
+a [label="Оператор\nПоручение и остановка"]; b [label="Панель Формовода\nРоли, поручения, журнал"]; c [label="Выбранные модели\nПлан и вызовы инструментов"]; d [label="Визуальный MCP\nОсмотр, ввод, чтение и сверка"]; e [label="Веб-клиент 1С\nОбычные права пользователя"]; f [label="Бригада и журнал\nЧто сделано и что прочитано"]
+a -> b -> c -> d -> e; d -> f; e -> f; f -> a [constraint=false]
+}

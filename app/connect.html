@@ -1,0 +1,61 @@
+<!doctype html><html lang="ru"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Выбор базы · Формовод</title>
+<style>
+*{box-sizing:border-box}html{color-scheme:dark}body{margin:0;min-height:100vh;background:radial-gradient(ellipse at 15% 0,#373025,#191b19 70%);color:#f2e7d4;font:15px/1.45 'Segoe UI',sans-serif}
+main{width:min(960px,94%);margin:clamp(16px,4vh,45px) auto 48px}header,.bar,.actions,.manual-fields{display:flex;align-items:center;gap:12px}header{border-bottom:1px solid #766344;padding-bottom:13px;font:600 22px Bahnschrift,sans-serif;color:#ecd0a6}header button,.actions button[type=submit]{margin-left:auto}
+h1{font:600 clamp(30px,4vw,44px)/1.1 Bahnschrift,'Segoe UI',sans-serif;letter-spacing:-.025em;margin:26px 0 18px}
+form{overflow:hidden;border:1px solid #806b4e;border-radius:11px;background:linear-gradient(135deg,#302d26,#222420);box-shadow:0 12px 36px #0005}.bar,.actions{padding:13px 18px;background:#211f1c}.bar{justify-content:space-between;border-bottom:1px solid #574c3c}.bar span{color:#d9c6a7}
+button,input{font:inherit;border:1px solid #846e4f;border-radius:6px;background:#302e29;color:#f4e6cf;padding:7px 12px}button{cursor:pointer}button:hover{border-color:#cda465}button:disabled{opacity:.5;cursor:default}:focus-visible{outline:2px solid #efb76c;outline-offset:2px}
+.item{display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:3px 12px;padding:11px 18px;border-bottom:1px solid #514a3d;cursor:pointer}.item:has(:checked){background:#a37a362a;box-shadow:inset 3px 0 #e0b578}.item:hover{background:#463e302e}
+.item input{grid-row:span 2;accent-color:#d4ac70}.item strong{font-weight:600}.item small{color:#c6beb0;overflow-wrap:anywhere;grid-column:2}.status{font-size:13px;color:#cdbda5}.status[data-state=online]{color:#91d0ac}.status[data-state=offline]{color:#e7a78a}
+#manual{padding:13px 18px;border-bottom:1px solid #514a3d}summary{cursor:pointer;color:#f1cf9c}.manual-fields{align-items:end;flex-wrap:wrap;margin:10px 0 2px}.manual-fields label{display:grid;gap:4px;flex:1;min-width:min(100%,210px);font-size:13px;color:#d0c2ad}.manual-fields input{width:100%}
+#notice{font-size:13px;color:#f1c89d;margin:0}.actions button{background:linear-gradient(#f2cf93,#ce9d5e);color:#28231b;font-weight:650}.empty{padding:15px 18px;color:#d6caba}[hidden]{display:none!important}
+@media(max-width:560px){.item{grid-template-columns:auto 1fr}.status{grid-column:2;grid-row:3}.bar,.actions{flex-wrap:wrap}.actions button{width:100%}}
+</style><main><header>Формовод<button type="button" id="journal">Журнал</button></header><h1>Выберите базу 1С</h1>
+<form><div class="bar"><span id="count" role="status">Поиск публикаций…</span><button id="refresh" type="button">Обновить список</button></div>
+<div id="list" role="radiogroup" aria-label="Публикации 1С"></div><div id="empty" class="empty" hidden>Публикации пока не найдены. Можно указать адрес веб-клиента вручную.</div>
+<details id="manual"><summary>Указать адрес вручную</summary><div class="manual-fields"><label>Название базы<input id="name" maxlength="80" autocomplete="off"></label><label>Адрес веб-клиента<input id="url" type="url" placeholder="https://server/erp/" autocomplete="off"></label></div></details>
+<div class="actions"><p id="notice" role="status"></p><button type="submit" id="connect" disabled>Подключить</button></div></form></main>
+<script>
+const $=s=>document.querySelector(s),list=$('#list'),manual=$('#manual'),connect=$('#connect'),notice=$('#notice');
+let selected='',busy=false,scanning=false;
+const labels={online:'Доступна',offline:'Нет ответа',restricted:'Доступ ограничен',unconfirmed:'Веб-клиент не подтверждён',redirect:'Есть перенаправление'};
+function controls(){
+  for(const field of [$('#name'),$('#url')]){field.disabled=busy||!manual.open;field.required=manual.open}
+  connect.disabled=busy||!(manual.open?$('#name').value.trim()&&$('#url').value.trim():selected);
+  $('#refresh').disabled=busy||scanning;
+}
+function draw(rows){
+  if(!rows.some(r=>r.url===selected))selected='';
+  const nodes=rows.map(r=>{
+    const row=document.createElement('label'),radio=document.createElement('input'),title=document.createElement('strong'),
+      status=document.createElement('span'),address=document.createElement('small');
+    row.className='item';radio.type='radio';radio.name='base';radio.value=r.url;radio.checked=r.url===selected&&!manual.open;
+    radio.onchange=()=>{selected=r.url;manual.open=false;notice.textContent='';controls()};
+    title.textContent=r.name;status.className='status';status.dataset.state=r.status||'';
+    status.textContent=labels[r.status]||(r.status||'Ещё не проверена').replace(/^http /,'HTTP ');
+    address.textContent=[r.url,...(r.sources||[])].join('  ·  ');row.append(radio,title,status,address);return row;
+  });
+  list.replaceChildren(...nodes);$('#empty').hidden=Boolean(rows.length)||scanning;
+  $('#count').textContent=scanning?'Поиск публикаций…':'Публикаций: '+rows.length+' · доступны: '+rows.filter(r=>r.status==='online').length;
+  controls();
+}
+async function refresh(){
+  if(scanning||busy)return;
+  scanning=true;list.dataset.scan='running';$('#empty').hidden=true;$('#count').textContent='Поиск публикаций…';controls();
+  try{const rows=await window.scanPublications();scanning=false;draw(rows);list.dataset.scan='done'}
+  catch{scanning=false;list.dataset.scan='error';$('#count').textContent='Поиск не завершён';notice.textContent='Можно повторить поиск или указать адрес.';controls()}
+}
+function setup(data){notice.textContent=data.message||'';draw(data.bases);void refresh()}
+manual.ontoggle=()=>{if(manual.open){selected='';const r=list.querySelector(':checked');if(r)r.checked=false}controls()};
+$('#name').oninput=$('#url').oninput=controls;
+$('#refresh').onclick=e=>{if(e.isTrusted)refresh()};
+$('#journal').onclick=async e=>{if(e.isTrusted)try{await window.openJournal()}catch{notice.textContent='Не удалось открыть журнал.'}};
+document.querySelector('form').onsubmit=async e=>{
+  e.preventDefault();if(!e.isTrusted||connect.disabled)return;
+  busy=true;controls();notice.textContent='Подключаю базу…';
+  try{const error=await window.connectPublication(manual.open?{url:$('#url').value.trim(),name:$('#name').value.trim()}:{url:selected});
+    if(error)notice.textContent=error;
+  }catch{notice.textContent='Соединение прервано.'}finally{busy=false;controls()}
+};
+</script></html>

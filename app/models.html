@@ -1,0 +1,74 @@
+<!doctype html><html lang="ru"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Модели бригады · Формовод</title>
+<style>
+*{box-sizing:border-box}html{color-scheme:dark}body{margin:0;background:radial-gradient(ellipse at 20% 0,#302b23,#191b19 70%);color:#f4ead7;font:15px/1.45 'Segoe UI',sans-serif}main{width:min(1080px,94%);margin:30px auto 60px}header{border-bottom:1px solid #796344;padding-bottom:12px;color:#efcc94;font:600 22px Bahnschrift,sans-serif}h1,h2{font-family:Bahnschrift,'Segoe UI',sans-serif}h1{font-size:clamp(30px,5vw,46px);margin:26px 0 16px}h2{font-size:19px;margin:0 0 10px}.layout{display:grid;grid-template-columns:minmax(0,1.4fr) minmax(280px,1fr);align-items:start;gap:14px}
+section{border:1px solid #766344;border-radius:10px;background:linear-gradient(145deg,#312f28,#232521);padding:18px;margin-bottom:14px;box-shadow:inset 0 1px #e6d0a322}
+label{display:grid;gap:4px}input,select,button{font:inherit;max-width:100%;min-width:0;border-radius:5px;border:1px solid #7b694e;background:#20221f;color:#f6e6c8;padding:8px}button{cursor:pointer;background:#393329}button:disabled{opacity:.5;cursor:default}:focus-visible{outline:2px solid #f6b659;outline-offset:2px}input::placeholder{color:#bcb4a7}.role{border-top:1px solid #514a3d;padding:10px 0;display:grid;grid-template-columns:1fr 1.2fr;gap:5px 8px}.role strong{grid-column:1/-1;font-size:14px;color:#ecd0a4}.small,p{color:#cfc3ae;font-size:13px;margin:6px 0 10px}.row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}.row label{flex:1}#save{background:linear-gradient(#f3ce8c,#d2a162);color:#2c2114;font-weight:700}#status{color:#efc997}#proxyUrl{width:100%;margin-top:8px}[hidden]{display:none!important}.check{display:block;margin-top:8px;font-size:13px}.check input{accent-color:#d3a568}@media(max-width:760px){.layout{grid-template-columns:1fr}.role{grid-template-columns:1fr}.role strong{grid-column:1}}
+</style><main><header>Формовод</header><h1>Модели бригады</h1><form>
+<div class="layout"><section><h2>Назначения ролей</h2><p>Оркестратор ведёт поручение. Для специалиста можно выбрать отдельную модель или оставить работу оркестратору.</p><div id="roles"></div></section>
+<div><section><h2>Подключения</h2><p>Codex использует вход через CLI. Для подписочного GLM выберите профиль DSH с учётной записью Z.ai Coding Plan.</p>
+<label>Профиль DSH для GLM<select id="glmProfile"><option value="">Автоматически</option></select></label>
+<label>API-ключ OpenRouter<input id="key" type="password" autocomplete="new-password" spellcheck="false" placeholder="Ввести новый ключ"></label>
+<div class="small" id="keyInfo"></div><label class="check" id="forgetLabel" hidden><input id="forget" type="checkbox"> Удалить сохранённый ключ</label>
+<p>Назначенная внешняя модель получает поручение и результаты доступных ей инструментов. OpenRouter применяет тариф выбранной модели.</p>
+<div class="row"><select id="provider" aria-label="Каталог поставщика"></select><button type="button" id="load">Загрузить каталог</button></div><div id="catalogStatus" class="small" role="status"></div></section>
+<section><h2>Прокси для моделей</h2><label>Подключение<select id="proxy"><option value="system">Системные настройки</option><option value="manual">Указать прокси</option><option value="direct">Прямое соединение</option></select></label>
+<input id="proxyUrl" aria-label="Адрес прокси" placeholder="http://127.0.0.1:10809" hidden><p id="routeLabel"></p><p>Применяется к каталогам и запросам моделей. Веб-клиент 1С использует своё подключение.</p></section></div></div>
+<div class="row"><button id="save" disabled>Сохранить настройки</button><span id="status" role="status"></span></div></form></main>
+<script>
+const $=s=>document.querySelector(s),fields=new Map(),catalogs={};let state;
+async function api(path,body){
+  const res=await fetch(path,{method:body?'POST':'GET',cache:'no-store',headers:{'Content-Type':'application/json','X-Formovod-Settings':'1'},body:body?JSON.stringify(body):undefined});
+  const data=await res.json();if(!res.ok)throw Error(data.error||'Ошибка подключения');return data;
+}
+function proxy(){return {mode:$('#proxy').value,url:$('#proxyUrl').value.trim()}}
+function keyStatus(data){
+  $('#keyInfo').textContent=data.keySource==='saved'?'Ключ сохранён с защитой Windows.':data.keySource==='environment'?'Доступен ключ из OPENROUTER_API_KEY.':'Ключ ещё не подключён.';
+  $('#forgetLabel').hidden=data.keySource!=='saved';
+}
+function fillCatalog(provider,items){
+  catalogs[provider]=items;let list=document.getElementById('list-'+provider);
+  if(!list){list=document.createElement('datalist');list.id='list-'+provider;document.body.append(list)}
+  list.replaceChildren(...items.map(m=>new Option(m.label||m.id,m.id)));
+}
+function setField(provider,model){
+  const p=provider.value;model.disabled=p==='inherit';model.required=p==='glm'||p==='openrouter';
+  model.placeholder=p==='inherit'?'Модель оркестратора':p==='codex'?(state.defaultModel||'По умолчанию Codex'):'Идентификатор модели';
+  model.setAttribute('list','list-'+p);
+}
+async function init(){
+  state=await api('/state');keyStatus(state);fillCatalog('codex',state.codex);
+  for(const name of state.profiles)$('#glmProfile').add(new Option(name,name));
+  if(state.glmProfile&&!state.profiles.includes(state.glmProfile))$('#glmProfile').add(new Option(state.glmProfile+' · не найден',state.glmProfile));
+  $('#glmProfile').value=state.glmProfile||'';$('#routeLabel').textContent=state.routeLabel;
+  for(const [id,label] of Object.entries(state.providers))$('#provider').add(new Option(label,id));
+  for(const [role,title] of Object.entries(state.roleNames)){
+    const row=document.createElement('div'),label=document.createElement('strong'),provider=document.createElement('select'),model=document.createElement('input');
+    row.className='role';row.dataset.role=role;label.textContent=title;
+    provider.setAttribute('aria-label',title+' · поставщик');model.setAttribute('aria-label',title+' · модель');
+    if(role!=='orchestrator')provider.add(new Option('Как у оркестратора','inherit'));
+    for(const [id,name] of Object.entries(state.providers))provider.add(new Option(name,id));
+    provider.value=state.roles[role].provider;model.value=state.roles[role].model;model.maxLength=191;
+    setField(provider,model);provider.onchange=()=>{model.value='';setField(provider,model);if(provider.value!=='inherit')$('#provider').value=provider.value};
+    row.append(label,provider,model);$('#roles').append(row);fields.set(role,{provider,model});
+  }
+  $('#proxy').value=state.proxy.mode;$('#proxyUrl').value=state.proxy.url;$('#proxy').onchange();
+  $('#save').disabled=false;if(state.busy)$('#status').textContent='Изменения можно сохранить после завершения поручения.';
+}
+$('#proxy').onchange=()=>{$('#proxyUrl').hidden=$('#proxy').value!=='manual'};
+$('#load').onclick=async()=>{
+  const p=$('#provider').value;$('#load').disabled=true;$('#catalogStatus').textContent='Загружаю модели…';
+  try{const items=await api('/catalog',{provider:p,proxy:proxy(),glmProfile:$('#glmProfile').value});fillCatalog(p,items);
+    $('#catalogStatus').textContent=state.providers[p]+' · доступно моделей: '+items.length+'. Выберите модель в поле нужной роли.'}
+  catch(e){$('#catalogStatus').textContent=e.message}finally{$('#load').disabled=false}
+};
+document.querySelector('form').onsubmit=async e=>{
+  e.preventDefault();$('#save').disabled=true;
+  const roles=Object.fromEntries([...fields].map(([r,c])=>[r,{provider:c.provider.value,model:c.model.value.trim()}]));
+  try{const result=await api('/save',{roles,proxy:proxy(),glmProfile:$('#glmProfile').value,key:$('#key').value,forgetKey:$('#forget').checked});
+    $('#routeLabel').textContent=result.routeLabel;
+    $('#key').value='';$('#forget').checked=false;keyStatus(result);$('#status').textContent='Сохранено. Настройки применятся к следующему поручению.'}
+  catch(err){$('#status').textContent=err.message}finally{$('#save').disabled=false}
+};
+init().catch(e=>$('#status').textContent=e.message);
+</script></html>

@@ -1,0 +1,82 @@
+<!doctype html><html lang="ru"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Журнал поручений · Формовод</title>
+<style>
+*{box-sizing:border-box}html{color-scheme:dark}body{margin:0;min-height:100vh;color:#f3e7d4;background:linear-gradient(135deg,#171a19b8,#151411df),url('/assets/graphite.png') center/700px;font:15px/1.5 'Segoe UI',sans-serif}
+main{width:min(1350px,94%);margin:clamp(15px,4vh,62px) auto 60px}
+.mast{display:flex;align-items:center;gap:12px;padding-bottom:17px;border-bottom:1px solid #7b674a;color:#e4d2b2;font:600 22px Bahnschrift,'Segoe UI',sans-serif}
+.emblem{display:grid;place-items:center;width:35px;height:35px;border:1px solid #dab781;border-radius:7px;background:linear-gradient(145deg,#f8dd9e,#ac7a42);box-shadow:inset 0 1px #fff6ce,0 2px 5px #0008;color:#352b1d;font:800 24px Georgia,serif}.mast small{font:13px 'Segoe UI',sans-serif;margin-left:auto;color:#c7baa7}
+header{display:flex;flex-wrap:wrap;align-items:end;justify-content:space-between;gap:16px 32px;padding:clamp(22px,4vh,52px) 0 20px}
+h1{font:600 clamp(32px,4vw,56px)/1.08 Bahnschrift,'Segoe UI',sans-serif;letter-spacing:-.035em;margin:0}
+label{display:grid;gap:4px;max-width:min(100%,570px);color:#cfb58c;font-size:13px}select,button{font:inherit;border:1px solid #826a49;border-radius:7px;background:#282620;color:#ffebc8;padding:9px 12px}select{width:100%;min-width:0;text-overflow:ellipsis}button,summary{cursor:pointer}button:hover,select:hover{border-color:#dab580}:focus-visible{outline:2px solid #e8af5c;outline-offset:3px}
+.rack{overflow:hidden;position:relative;border:1px solid #867151;border-radius:12px;background:linear-gradient(130deg,#2c2a24,#1b1d1b);box-shadow:inset 0 1px #ead1a533,0 14px 40px #0005}
+.rack-head{display:flex;align-items:center;gap:10px;padding:13px 23px;background:#201f1be6;border-bottom:1px solid #63553f;font-size:13px;color:#deceb0}
+.lamp{width:8px;height:8px;border-radius:50%;background:#edb566;box-shadow:0 0 9px #edb56688}
+.empty{display:grid;grid-template-columns:1fr minmax(0,.95fr);align-items:stretch;min-height:230px}.empty-copy{align-self:center;padding:clamp(20px,4vw,64px)}h2{margin:0 0 9px;font:600 clamp(23px,2.4vw,34px)/1.15 Bahnschrift,'Segoe UI',sans-serif}.empty p{margin:0;max-width:40ch;color:#d3c5af}.empty-art{aspect-ratio:2;min-height:190px;background:linear-gradient(90deg,#272822,transparent 18%),url('/assets/journal-console.webp') center top/cover}
+details{border-bottom:1px solid #4b483e}details:last-child{border:0}summary{list-style:none;display:grid;grid-template-columns:98px minmax(110px,175px) 1fr 18px;gap:16px;align-items:baseline;padding:13px 23px;overflow-wrap:anywhere}summary::-webkit-details-marker{display:none}summary:hover,details[open]{background:#37342c}summary::after{content:'⌄';color:#cba268;text-align:center}details[open] summary::after{transform:rotate(180deg)}
+time{font:13px Consolas,monospace;color:#bfb6a6}.kind{color:#efc389;font-weight:600}.error .kind{color:#ff9f89}.ok .kind{color:#8ed1b1}.description{min-width:0;color:#e0d8ca}pre{margin:0 20px 16px;border-left:2px solid #a88957;border-radius:3px;padding:15px;background:#171a19;color:#e3e1d6;white-space:pre-wrap;overflow-wrap:anywhere;font:13px/1.5 Consolas,monospace}details img{display:block;max-width:calc(100% - 40px);margin:10px 20px 20px}
+#more{margin:16px 22px}[hidden]{display:none!important}@media(max-width:660px){main{width:94%}.empty{grid-template-columns:1fr}.empty-art{min-height:150px;max-height:190px}.rack-head,summary{padding:12px}summary{grid-template-columns:78px 1fr 14px;gap:5px 8px}.description{grid-row:2;grid-column:1/3}summary::after{grid-column:3;grid-row:1}label{width:100%}}
+</style><main><div class="mast"><span class="emblem" aria-hidden="true">Ф</span>Формовод<small>Обновляется автоматически</small></div><header><h1>Журнал поручений</h1><label id="choose" hidden>Поручение<select id="files"></select></label></header>
+<div class="rack"><div class="rack-head"><i class="lamp" aria-hidden="true"></i><span id="status" role="status">Загрузка…</span></div>
+<section class="empty" id="empty" hidden><div class="empty-copy"><h2>Поручений пока нет</h2><p>Отправьте поручение из пульта 1С. Здесь появятся действия бригады и результаты сверки.</p></div><div class="empty-art" aria-hidden="true"></div></section>
+<section id="events" aria-label="События поручения"></section><button id="more" hidden>Показать следующие события</button></div></main>
+<script>
+const files=document.querySelector('#files'),events=document.querySelector('#events'),statusLine=document.querySelector('#status'),more=document.querySelector('#more');
+let offset=0,epoch=0,pending=false,hasMore=false;
+const names={received:'Поручение получено',tool_start:'Вызов',tool_done:'Результат',tool_error:'Ошибка',item_skipped:'Пропуск',tool_interrupted:'Действие прервано',cancelled:'Поручение остановлено',completed:'Поручение выполнено',failed:'Поручение завершилось с ошибкой'};
+const operations={inspect_1c:'Осмотр формы',read_1c:'Чтение поля',type_1c:'Ввод значения',click_1c:'Нажатие',
+  press_1c:'Клавиша',scroll_1c:'Прокрутка',screenshot_1c:'Снимок формы',read_workbook:'Чтение книги Excel',open_1c:'Открытие 1С',close_1c:'Закрытие 1С'};
+Object.assign(names,{role_start:'Роль приступила',role_done:'Роль завершила работу',role_interrupted:'Работа роли прервана',model_usage:'Ответ модели'});
+function reset(){epoch++;offset=0;pending=false;hasMore=false;events.replaceChildren();more.hidden=true}
+async function get(url){const reply=await fetch(url,{cache:'no-store'});const value=await reply.json();if(!reply.ok)throw Error(value.error);return value}
+function draw(r){
+  const row=document.createElement('details'),line=document.createElement('summary'),time=document.createElement('time');
+  time.textContent=(r.time||'').slice(11,23);
+  const kind=document.createElement('span'),description=document.createElement('span');
+  row.className=r.result?.matches===false||['failed','tool_error','tool_interrupted'].includes(r.event)?'error':
+    r.result?.matches===true||r.event==='completed'?'ok':'';
+  kind.className='kind';kind.textContent=names[r.event]||r.event;
+  description.className='description';
+  const observed=typeof r.result?.matches==='boolean'?(r.result.matches?'Совпало':'Расхождение')+' · '+r.result.value:'';
+  description.textContent=[r.role,r.role&&r.model,r.call?'№ '+r.call:'',operations[r.tool]||r.tool,r.text||r.arguments?.target||
+    r.arguments?.query||observed||r.answer||r.error||r.reason||r.summary||''].filter(Boolean).join(' · ').slice(0,210);
+  line.append(time,kind,description);
+  const filename=files.value,raw=document.createElement('pre');row.addEventListener('toggle',()=>{
+    if(!row.open||raw.textContent)return;
+    raw.textContent=JSON.stringify(r,null,2);
+    if(r.tool==='screenshot_1c'&&r.result?.screenshot){
+      const img=new Image();img.alt='Снимок окна 1С';img.style.maxWidth='100%';
+      img.src='/image?file='+encodeURIComponent(filename)+'&image='+encodeURIComponent(r.result.screenshot);row.append(img);
+    }
+  });
+  row.append(line,raw);events.append(row);
+}
+async function read(){
+  if(!files.value||pending)return;
+  const revision=epoch;pending=true;
+  try{
+    const page=await get('/events?file='+encodeURIComponent(files.value)+'&offset='+offset);
+    if(revision!==epoch)return;
+    page.records.forEach(draw);offset=page.offset;hasMore=page.more;more.hidden=!hasMore;
+    statusLine.textContent='Показано событий — '+events.childElementCount;
+  }catch(e){if(revision===epoch)statusLine.textContent=e.message}
+  finally{if(revision===epoch)pending=false}
+}
+async function refresh(){
+  const revision=epoch;
+  try{
+    const result=await get('/files');if(revision!==epoch)return;
+    const list=result.map(s=>typeof s==='string'?{name:s,label:s}:s);
+    if(JSON.stringify(list)!==files.dataset.list){
+      const previous=files.value,wanted=previous||location.hash.slice(1);files.dataset.list=JSON.stringify(list);
+      files.replaceChildren(...list.map(s=>new Option(s.label,s.name)));files.value=list.some(s=>s.name===wanted)?wanted:list[0]?.name||'';
+      if(previous&&previous!==files.value)reset();
+    }
+    document.querySelector('#choose').hidden=!files.value;
+    document.querySelector('#empty').hidden=Boolean(files.value);
+    if(!files.value){statusLine.textContent='История работы';return}
+    if(!hasMore)await read();
+  }catch(e){statusLine.textContent=e.message}
+}
+files.onchange=()=>{history.replaceState(null,'','#'+files.value);reset();read()};
+onhashchange=()=>{files.value=location.hash.slice(1);delete files.dataset.list;reset();refresh()};
+more.onclick=read;refresh();setInterval(refresh,1500);
+</script></html>

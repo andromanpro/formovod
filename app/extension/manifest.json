@@ -1,0 +1,28 @@
+{
+  "manifest_version": 3,
+  "name": "Формовод",
+  "version": "0.8.0",
+  "description": "Визуальные действия бригады и панель поручений в веб-клиенте 1С.",
+  "permissions": [
+    "activeTab",
+    "scripting"
+  ],
+  "action": {
+    "default_title": "Включить живой показ в этой вкладке 1С"
+  },
+  "background": {
+    "service_worker": "background.js"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "http://127.0.0.1/live/*"
+      ],
+      "js": [
+        "visible-rect.js",
+        "overlay.js"
+      ],
+      "run_at": "document_idle"
+    }
+  ]
+}

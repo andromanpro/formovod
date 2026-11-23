@@ -11,7 +11,7 @@ ROOT=Path(__file__).resolve().parents[1]
 def build(destination):
     extension=ROOT/'app'/'extension'
     version=json.loads((extension/'manifest.json').read_text('utf8'))['version']
-    sources=[ROOT/name for name in ('Install-Formovod.cmd','Run-Formovod.cmd','Start-Formovod-ERP.cmd',
+    sources=[ROOT/name for name in ('Install-Formovod.cmd','Start-Formovod.cmd',
                                     'requirements.txt','requirements-win-py314.lock')]
     sources.extend(path for path in (ROOT/'app').glob('*.py') if path.name!='demo_brigade.py')
     sources.extend(ROOT/'app'/name for name in ('workspace.html','surface.js','journal.html','models.html','connect.html'))

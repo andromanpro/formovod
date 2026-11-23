@@ -1,5 +1,5 @@
 # Use the actual publication URL and local installation directory.
-# Start-Formovod-ERP.cmd --print-mcp outputs the configuration for this computer.
+# Start-Formovod.cmd --print-mcp outputs the configuration for this computer.
 [mcp_servers.formovod-erp]
 command = "C:/Formovod/.venv/Scripts/python.exe"
 cwd = "C:/Formovod"

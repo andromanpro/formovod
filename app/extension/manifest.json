@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Формовод",
-  "version": "0.8.0",
+  "version": "0.8.1",
   "description": "Визуальные действия бригады и панель поручений в веб-клиенте 1С.",
   "permissions": [
     "activeTab",
